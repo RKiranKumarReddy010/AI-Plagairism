@@ -1,27 +1,46 @@
 import re
 from typing import List, Dict, Any, Optional
-import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
 
 
 class SemanticEngine:
     """Semantic vector plagiarism detection using FAISS and SentenceTransformers.
 
     Detects paraphrased, summarized, and idea-level text overlap.
+    Falls back gracefully when vector dependencies are unavailable (e.g. serverless environments).
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
-        self._model: Optional[SentenceTransformer] = None
-        self._index: Optional[faiss.IndexFlatIP] = None
+        self._model: Optional[Any] = None
+        self._index: Optional[Any] = None
         self.dim: Optional[int] = None
         self.metadata: List[Dict[str, Any]] = []
         self.indexed_docs: Dict[str, str] = {}
 
     @property
-    def model(self) -> SentenceTransformer:
-        """Lazy load model on first use."""
+    def is_available(self) -> bool:
+        return SentenceTransformer is not None and faiss is not None
+
+    @property
+    def model(self):
+        """Lazy load model on first use if available."""
+        if not self.is_available:
+            return None
         if self._model is None:
             self._model = SentenceTransformer(self.model_name)
             self.dim = self._model.get_sentence_embedding_dimension()
@@ -29,7 +48,9 @@ class SemanticEngine:
         return self._model
 
     @property
-    def index(self) -> faiss.IndexFlatIP:
+    def index(self):
+        if not self.is_available:
+            return None
         if self._index is None:
             _ = self.model  # triggers initialization
         return self._index
@@ -40,7 +61,10 @@ class SemanticEngine:
         return [s.strip() for s in sentences if len(s.split()) >= 4]
 
     def index_document(self, doc_id: str, text: str):
-        """Encodes and indexes chunks of a document into the FAISS index."""
+        """Encodes and indexes chunks of a document into the FAISS index if available."""
+        if not self.is_available or self.model is None or self.index is None:
+            return
+
         chunks = self._chunk_text(text)
         if not chunks:
             return
@@ -56,8 +80,11 @@ class SemanticEngine:
 
     def query(self, query_text: str, top_k: int = 3, threshold: float = 0.75) -> List[Dict[str, Any]]:
         """Queries the vector index for semantic matches above the similarity threshold."""
+        if not self.is_available or self.model is None or self.index is None or self.index.ntotal == 0:
+            return []
+
         query_chunks = self._chunk_text(query_text)
-        if not query_chunks or self.index.ntotal == 0:
+        if not query_chunks:
             return []
 
         q_embeddings = self.model.encode(query_chunks, convert_to_numpy=True)

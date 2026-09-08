@@ -11,12 +11,15 @@ build/
 # Virtual environment
 venv/
 .venv/
+
 env/
 
 # IDE / OS
 .vscode/
 .idea/
 *.swp
+.vercel/
+
 .DS_Store
 Thumbs.db
 
