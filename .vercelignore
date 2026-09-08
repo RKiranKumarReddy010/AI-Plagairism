@@ -1,0 +1,22 @@
+# Local environments & caches
+.env
+.env.*
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.github/
+
+# Development & Notebooks
+notebooks/
+scripts/
+tests/
+assets/
+*.ipynb
+test*.py
+test.ps1
+verify_system.py
+
+# Documentation
+*.md
